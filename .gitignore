@@ -1,0 +1,13 @@
+# 编译产物
+*.exe
+*.exe~
+wzimgget
+wzimgget.exe
+
+# 提取输出目录（内容多且含游戏版权资源，不入库）
+imgdata/
+
+# 调试临时文件
+*.log
+trace_*.txt
+dump_*.txt

@@ -1,6 +1,6 @@
 # WZ 独立 .img 文件格式
 
-> 适用对象：由 HaSuite 等工具从 .wz 容器导出的**独立 .img 文件**（北斗客户端 Data 目录即此形态）。
+> 适用对象：由 HaSuite 等工具从 .wz 容器导出的**独立 .img 文件**（客户端资源 Data 目录即此形态）。
 > 参考实现：[WzComparerR2](https://github.com/Kagamia/WzComparerR2)（v1.0 master 与 v80315 两版均核对过）。
 
 ## 1. 与 .wz 容器的区别
@@ -76,7 +76,7 @@
 x=compint y=compint
 ```
 
-### Canvas（旧 v80315 布局，北斗数据实测为此版）
+### Canvas（旧 v80315 布局，样本数据实测为此版）
 ```
 skip 1 字节
 if readByte()==0x01:            ; 有子属性

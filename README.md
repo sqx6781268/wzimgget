@@ -1,6 +1,6 @@
 # wzimgget — WZ 独立 .img 图标提取工具
 
-扫描北斗客户端 `Data` 目录（由特制版 HaSuite 从 .wz 导出的独立 `.img` 文件），
+扫描游戏客户端 `Data` 目录（由 HaSuite 等工具从 .wz 容器导出的独立 `.img` 文件），
 参照 [WzComparerR2](https://github.com/Kagamia/WzComparerR2) 的解析思路，
 提取 **装备（Character）、物品（Item）、NPC（Npc）** 三类资源的主图标，
 输出为 PNG 并保持与 Data 相同的目录结构。
@@ -86,6 +86,8 @@ wzimgget.exe png D:\game\Data\Npc\0002000.img stand/0 out.png
 wzimgget/
 ├── main.go          命令行入口（extract / dump / png）
 ├── extract.go       批量提取：目录遍历、图标候选、统计
+├── LICENSE          MIT 许可证
+├── .gitignore       忽略编译产物与提取输出
 ├── docs/            经验文档（格式/加密/像素/业务/踩坑，见 docs/文档索引.md）
 └── wz/
     ├── key.go       AES-256-ECB 链式密钥流（BMS/KMS/GMS）
@@ -101,3 +103,11 @@ wzimgget/
 - 仅支持独立 `.img` 文件（无 .wz 文件头/目录树），不支持 `.wz` 容器与 list.wz。
 - 密钥固定为官方三套 IV，不支持 ZLZ 动态密钥。
 - 极少数 NPC（如 9330077）所有帧均为空画布（数据仅 2 字节），无法产出图像。
+
+## 许可证与免责声明
+
+- 本项目采用 [MIT License](LICENSE) 开源。
+- 本项目仅用于游戏资源文件格式的学习与研究，不附带任何游戏数据；
+  游戏资源（含 .wz/.img 内的图像、文本等）的版权归原游戏厂商及相关权利人所有，
+  请勿将其用于商业用途或再次分发。
+
