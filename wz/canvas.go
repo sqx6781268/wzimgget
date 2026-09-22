@@ -227,21 +227,21 @@ func bmpToPNG(bmp []byte) ([]byte, error) {
 // ---------- DXT 解码 ----------
 
 func dxt3(data []byte, w, h int) ([]byte, error) {
-	if len(data) < (w/4+bool2i(w%4>0))*(h/4+bool2i(h%4>0))*16 {
+	if len(data) < (w/4+bool2i(w%4 > 0))*(h/4+bool2i(h%4 > 0))*16 {
 		return nil, fmt.Errorf("dxt3 数据不足")
 	}
 	out := make([]byte, w*h*4)
 	for by := 0; by*4 < h; by++ {
 		for bx := 0; bx*4 < w; bx++ {
-			off := (by*(w/4+bool2i(w%4>0) ) + bx) * 16
+			off := (by*(w/4+bool2i(w%4 > 0)) + bx) * 16
 			if off+16 > len(data) {
 				continue
 			}
 			var alpha [16]byte
 			for i := 0; i < 8; i++ {
 				b := data[off+i]
-				alpha[i*2] = b & 0x0F | (b & 0x0F) << 4
-				alpha[i*2+1] = b & 0xF0 | (b & 0xF0) >> 4
+				alpha[i*2] = b&0x0F | (b&0x0F)<<4
+				alpha[i*2+1] = b&0xF0 | (b&0xF0)>>4
 			}
 			colors := dxtColors(data[off+8:])
 			for j := 0; j < 4; j++ {
@@ -261,8 +261,8 @@ func dxt3(data []byte, w, h int) ([]byte, error) {
 }
 
 func dxt5(data []byte, w, h int) ([]byte, error) {
-	bw := w/4 + bool2i(w%4>0)
-	if len(data) < bw*(h/4+bool2i(h%4>0))*16 {
+	bw := w/4 + bool2i(w%4 > 0)
+	if len(data) < bw*(h/4+bool2i(h%4 > 0))*16 {
 		return nil, fmt.Errorf("dxt5 数据不足")
 	}
 	out := make([]byte, w*h*4)

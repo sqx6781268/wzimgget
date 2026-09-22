@@ -27,17 +27,59 @@ var (
 // Keystream 由 IV 经 AES-ECB 链式加密生成的密钥流，用于解密字符串与部分数据块。
 // 与 WzComparerR2 一致：每个缓冲区都从密钥流下标 0 开始异或。
 type Keystream struct {
-	iv   [4]byte
-	keys []byte
-	zero bool // BMS 空 IV：不加密
+	userKey []byte  // 32 字节 AES-256 用户密钥（默认为官方全局密钥）
+	iv      [4]byte // 4 字节 IV，决定整条密钥流
+	keys    []byte
+	zero    bool // 空 IV：不加密
 }
 
 func NewKeystream(iv [4]byte) *Keystream {
-	k := &Keystream{iv: iv}
+	return NewKeystreamWithUserKey(aesKey, iv)
+}
+
+// NewKeystreamWithUserKey 用外部提供的 32 字节用户密钥生成密钥流（如 ZLZ 动态密钥场景）。
+func NewKeystreamWithUserKey(userKey []byte, iv [4]byte) *Keystream {
+	k := &Keystream{userKey: userKey, iv: iv}
 	if iv == [4]byte{} {
 		k.zero = true
 	}
 	return k
+}
+
+func (k *Keystream) IV() [4]byte { return k.iv }
+
+func (k *Keystream) UserKey() []byte { return k.userKey }
+
+// externalKeys 为外部注入的密钥流（命令行 -key 或暴力枚举成功的结果），
+// 在所有探测中优先于内置 BMS/KMS/GMS 尝试；暴力枚举成功后会记录于此，
+// 使同一批后续文件直接命中该密钥而无需重复枚举。
+var externalKeys []*Keystream
+
+// AddExternalKeystream 注册外部密钥流；同一密钥+IV 组合去重。返回是否为新增。
+func AddExternalKeystream(ks *Keystream) bool {
+	for _, e := range externalKeys {
+		if e.iv == ks.iv && string(e.userKey) == string(ks.userKey) {
+			return false
+		}
+	}
+	externalKeys = append(externalKeys, ks)
+	return true
+}
+
+// candidateKeystreams 返回探测顺序：外部密钥 → BMS → KMS → GMS。
+func candidateKeystreams() []*Keystream {
+	ivs := []Keystream{
+		{userKey: aesKey, iv: IV_BMS},
+		{userKey: aesKey, iv: IV_KMS},
+		{userKey: aesKey, iv: IV_GMS},
+	}
+	out := make([]*Keystream, 0, len(externalKeys)+3)
+	out = append(out, externalKeys...)
+	for i := range ivs {
+		k := ivs[i]
+		out = append(out, &k)
+	}
+	return out
 }
 
 func (k *Keystream) ensure(n int) {
@@ -47,7 +89,7 @@ func (k *Keystream) ensure(n int) {
 	blockSize := 16
 	blocks := (n + blockSize - 1) / blockSize
 	newKeys := make([]byte, blocks*blockSize)
-	cipher, err := aes.NewCipher(aesKey)
+	cipher, err := aes.NewCipher(k.userKey)
 	if err != nil {
 		panic(err)
 	}

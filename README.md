@@ -12,6 +12,10 @@
   ANSI `0xAA` / UTF-16 `0xAAAA` 递增掩码）。按 WzComparerR2 `TryDetectEnc` 的思路，
   以根节点类型标记（`Property`/`Canvas` 等）解密结果快速判定密钥，判定失败时
   回退为逐密钥完整试解析。本批 Data 实测为 GMS 密钥。
+- **外部密钥与暴力枚举兜底**：`-key` 可传入自定义 IV（8 位十六进制）或 32 字节用户
+  密钥（64 位十六进制，ZLZ 动态密钥场景）；内置与外部密钥全部失败时，自动对
+  0..2^32-1 全 IV 空间并行暴力枚举（两级判据，见 docs），命中后记录该密钥供本次
+  运行后续文件优先使用，并写入 `wzimgget_keys.log`；`-nobf` 可关闭该兜底。
 - **完整属性树解析**：Property / Canvas / Vector2D / Convex2D / Sound_DX8 / UOL /
   RawData 等节点类型，支持变长整数（compint/compfloat/compint64）、
   内联与引用（0x00/0x73/0x01/0x1B）字符串、UOL 跳转。
@@ -53,6 +57,12 @@ wzimgget.exe extract D:\game\Data
 
 :: 显式指定输出目录
 wzimgget.exe extract D:\game\Data -out D:\icons
+
+:: 传入外部密钥（逗号分隔多个）：8位十六进制=自定义IV；64位十六进制=32字节用户密钥
+wzimgget.exe extract D:\game\Data -key 4D23C72B
+
+:: 关闭 IV 暴力枚举兜底（默认开启：所有密钥失败时自动全空间搜索）
+wzimgget.exe extract D:\game\Data -nobf
 ```
 
 - 仅处理顶层目录为 `Character` / `Item` / `Npc` 的 `.img`，其余目录整体跳过。
@@ -61,6 +71,18 @@ wzimgget.exe extract D:\game\Data -out D:\icons
 - 结束后打印统计：总数 / 成功 / 无图标 / 失败。加 `-v` 可逐文件输出明细。
 - 说明：`Character/Hair`、`Character/Face` 等穿戴部件的 img 本身不含
   `info/icon` 图标节点，属正常"无图标"跳过。
+
+### 提取单个 img 文件
+
+```bat
+:: 默认输出到文件同目录的 <文件名>.img.png
+wzimgget.exe img D:\game\Data\Npc\0002000.img
+
+:: 指定输出 PNG 路径（或目录）
+wzimgget.exe img D:\game\Data\Npc\0002000.img -out icon.png
+```
+
+支持同样的 `-key` / `-nobf` 选项；未知密钥文件同样会触发暴力枚举兜底。
 
 ### 调试命令
 
@@ -84,14 +106,16 @@ wzimgget.exe png D:\game\Data\Npc\0002000.img stand/0 out.png
 
 ```
 wzimgget/
-├── main.go          命令行入口（extract / dump / png）
+├── main.go          命令行入口（extract / img / dump / png）
 ├── extract.go       批量提取：目录遍历、图标候选、统计
+├── keys.go          外部密钥注册与暴力枚举兜底编排、密钥日志
 ├── LICENSE          MIT 许可证
 ├── .gitignore       忽略编译产物与提取输出
-├── docs/            经验文档（格式/加密/像素/业务/踩坑，见 docs/文档索引.md）
+├── docs/            经验文档（格式/加密/像素/业务/踩坑/密钥对照，见 docs/文档索引.md）
 └── wz/
-    ├── key.go       AES-256-ECB 链式密钥流（BMS/KMS/GMS）
+    ├── key.go       AES-256-ECB 链式密钥流（BMS/KMS/GMS + 外部密钥）
     ├── detect.go    加密形式自动探测（根类型标记判定）
+    ├── bruteforce.go IV 全空间暴力枚举兜底（两级判据、多核并行）
     ├── img.go       img 属性树解析器（含部分树容错）
     ├── node.go      节点模型与查找/路径解析
     ├── canvas.go    Canvas 像素解码与 PNG 编码
@@ -101,7 +125,8 @@ wzimgget/
 ## 已知限制
 
 - 仅支持独立 `.img` 文件（无 .wz 文件头/目录树），不支持 `.wz` 容器与 list.wz。
-- 密钥固定为官方三套 IV，不支持 ZLZ 动态密钥。
+- 默认内置官方三套 IV；ZLZ 动态密钥或私有 IV 可用 `-key` 外部传入，
+  或交由暴力枚举兜底自动搜索（约 2^32 次 AES 运算，本机实测最坏 ~15 秒）。
 - 极少数 NPC（如 9330077）所有帧均为空画布（数据仅 2 字节），无法产出图像。
 
 ## 许可证与免责声明

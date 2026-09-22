@@ -24,12 +24,18 @@ type parser struct {
 	path  []string // 调试用：当前节点路径
 }
 
-// Load 解析独立 .img 文件内容，自动探测加密方式（BMS/KMS/GMS）。
+// Load 解析独立 .img 文件内容，自动探测加密方式：
+// 优先尝试外部注入密钥（命令行 -key 或此前暴力枚举记录的密钥），再尝试内置 BMS/KMS/GMS。
 // 优先按 WzComparerR2 TryDetectEnc 的思路以根类型标记快速判定密钥；
 // 判定失败时回退为逐密钥完整试解析。即使解析中途出错，
 // 也会尽力返回已成功解析的最深部分属性树。
 func Load(data []byte) (*Img, error) {
-	if ks, _, ok := DetectKeystream(data); ok {
+	keys := candidateKeystreams()
+	for _, ks := range keys {
+		tag, ok := readImgTagAt(data, ks, 0)
+		if !ok || !validImgTags[tag] {
+			continue
+		}
 		if img, _, err := loadWith(data, ks); err == nil {
 			return img, nil
 		}
@@ -37,8 +43,7 @@ func Load(data []byte) (*Img, error) {
 	var lastErr error
 	var best *Img
 	bestProg := -1
-	for _, iv := range [][4]byte{IV_KMS, IV_GMS, IV_BMS} {
-		ks := NewKeystream(iv)
+	for _, ks := range keys {
 		img, prog, err := loadWith(data, ks)
 		if err == nil {
 			return img, nil
@@ -81,10 +86,12 @@ func loadWith(data []byte, ks *Keystream) (img *Img, prog int, err error) {
 }
 
 func ksName(ks *Keystream) string {
-	switch ks.iv {
-	case IV_KMS:
+	switch {
+	case string(ks.userKey) != string(aesKey):
+		return fmt.Sprintf("USER:%x", ks.iv)
+	case ks.iv == IV_KMS:
 		return "KMS"
-	case IV_GMS:
+	case ks.iv == IV_GMS:
 		return "GMS"
 	}
 	return "BMS"

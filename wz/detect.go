@@ -16,11 +16,11 @@ var validImgTags = map[string]bool{
 }
 
 // DetectKeystream 参照 WzComparerR2 的 TryDetectEnc：
-// 读取根节点类型标记字符串，依次用 BMS/KMS/GMS 密钥流解密，
-// 能解出合法类型名的即为该文件使用的加密形式，避免整文件重复试解析。
+// 读取根节点类型标记字符串，依次用外部密钥（-key / 暴力枚举记录）与
+// BMS/KMS/GMS 密钥流解密，能解出合法类型名的即为该文件使用的加密形式，
+// 避免整文件重复试解析。
 func DetectKeystream(data []byte) (*Keystream, string, bool) {
-	for _, iv := range [][4]byte{IV_BMS, IV_KMS, IV_GMS} {
-		ks := NewKeystream(iv)
+	for _, ks := range candidateKeystreams() {
 		if tag, ok := readImgTagAt(data, ks, 0); ok && validImgTags[tag] {
 			return ks, tag, true
 		}

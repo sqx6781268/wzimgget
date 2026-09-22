@@ -38,7 +38,7 @@ func bmpDecode(data []byte) (image.Image, error) {
 		return nil, fmt.Errorf("非法 BMP 尺寸 %dx%d", w, h)
 	}
 	bppBytes := int(bpp / 8)
-	stride := ((int(bpp) * w + 31) / 32) * 4
+	stride := ((int(bpp)*w + 31) / 32) * 4
 	if pixOff+stride*h > len(data) {
 		return nil, fmt.Errorf("BMP 数据不足")
 	}

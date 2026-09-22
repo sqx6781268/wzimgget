@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +12,8 @@ import (
 
 // 命令行入口：
 //
-//	wzimgget extract <Data目录> [-out 输出目录] [-v]  批量提取图标（默认输出到 Data 同级 imgdata）
+//	wzimgget extract <Data目录> [-out 输出目录] [-key 密钥] [-nobf] [-v]  批量提取图标（默认输出到 Data 同级 imgdata）
+//	wzimgget img <xx.img> [-out 输出.png] [-key 密钥] [-nobf]            解密提取单个 img 主图标
 //	wzimgget dump <xx.img>                            打印 img 属性树（调试用）
 //	wzimgget png <xx.img> <节点路径> <out.png>         导出指定 Canvas 节点为 PNG（调试用）
 func main() {
@@ -41,10 +43,66 @@ func main() {
 		cmdPng(os.Args[2], os.Args[3], os.Args[4])
 	case "extract":
 		cmdExtract(os.Args[2:])
+	case "img":
+		cmdImg(os.Args[2:])
 	default:
 		usage()
 		os.Exit(1)
 	}
+}
+
+// cmdImg 解密提取单个 .img 文件的主图标。
+func cmdImg(args []string) {
+	flagArgs, posArgs := splitArgs(args)
+	fs := flag.NewFlagSet("img", flag.ExitOnError)
+	out := fs.String("out", "", "输出 PNG 路径，默认为文件同目录下 <文件名>.img.png")
+	key := fs.String("key", "", "外部密钥，逗号分隔：8位十六进制IV 或 64位十六进制32字节用户密钥")
+	nobf := fs.Bool("nobf", false, "禁用密钥全部失败时的 IV 暴力枚举兜底")
+	fs.Parse(flagArgs)
+	if *key != "" {
+		if err := setupKeys(*key); err != nil {
+			fmt.Fprintln(os.Stderr, "错误:", err)
+			os.Exit(1)
+		}
+	}
+	if len(posArgs) == 0 {
+		fmt.Fprintln(os.Stderr, "错误: 需要传入 .img 文件路径，例如: wzimgget img D:\\game\\Data\\Npc\\0002000.img")
+		os.Exit(1)
+	}
+	abs, err := filepath.Abs(posArgs[0])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "错误:", err)
+		os.Exit(1)
+	}
+	dst := *out
+	if dst == "" {
+		dst = abs + ".png" // 默认：<文件名>.img.png，与批量提取命名一致
+	} else if st, err := os.Stat(dst); err == nil && st.IsDir() {
+		dst = filepath.Join(dst, filepath.Base(abs)+".png") // -out 为目录时按默认命名放入
+	}
+	img, err := loadImgFile(abs, !*nobf, filepath.Join(filepath.Dir(abs), "wzimgget_keys.log"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "错误:", err)
+		os.Exit(1)
+	}
+	pngData, err := pickIcon(img)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "错误:", err)
+		os.Exit(1)
+	}
+	if pngData == nil {
+		fmt.Fprintln(os.Stderr, "未找到可提取的图标节点")
+		os.Exit(1)
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, "创建输出目录失败:", err)
+		os.Exit(1)
+	}
+	if err := os.WriteFile(dst, pngData, 0o644); err != nil {
+		fmt.Fprintln(os.Stderr, "写入失败:", err)
+		os.Exit(1)
+	}
+	fmt.Printf("完成 %s -> %s\n", filepath.Base(abs), dst)
 }
 
 // siblingDataDir 在二进制所在目录及当前工作目录中查找名为 Data 的子目录（忽略大小写）。
@@ -77,7 +135,11 @@ func pause() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "用法: wzimgget extract <Data目录> [-out 输出目录] [-v] | dump <file.img> | png <file.img> <path> <out.png>")
+	fmt.Fprintln(os.Stderr, "用法: wzimgget extract <Data目录> [-out 输出目录] [-key 密钥] [-nobf] [-v]")
+	fmt.Fprintln(os.Stderr, "      wzimgget img <单个xx.img> [-out 输出.png] [-key 密钥] [-nobf]")
+	fmt.Fprintln(os.Stderr, "      wzimgget dump <file.img> | png <file.img> <path> <out.png>")
+	fmt.Fprintln(os.Stderr, "说明: -key 逗号分隔多个，8位十六进制=自定义IV，64位十六进制=32字节用户密钥；")
+	fmt.Fprintln(os.Stderr, "      所有密钥失败时自动进行 IV 暴力枚举（-nobf 关闭），命中后记录密钥并写入 wzimgget_keys.log")
 	fmt.Fprintln(os.Stderr, "提示: 将本程序放在 Data 目录同级时直接双击运行，可自动提取 Data 下的图标到同级 imgdata")
 }
 

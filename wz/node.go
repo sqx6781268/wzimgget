@@ -4,18 +4,18 @@ package wz
 type Kind int
 
 const (
-	KindNull    Kind = iota // 空
-	KindInt                 // 整数
-	KindFloat               // 单精度
-	KindDouble              // 双精度
-	KindString              // 字符串
-	KindSub                 // 子属性树
-	KindVector              // 坐标
-	KindCanvas              // 画布（图片）
-	KindConvex              // 凸多边形
-	KindSound               // 声音
-	KindUOL                 // 引用链接
-	KindRaw                 // 原始数据块
+	KindNull   Kind = iota // 空
+	KindInt                // 整数
+	KindFloat              // 单精度
+	KindDouble             // 双精度
+	KindString             // 字符串
+	KindSub                // 子属性树
+	KindVector             // 坐标
+	KindCanvas             // 画布（图片）
+	KindConvex             // 凸多边形
+	KindSound              // 声音
+	KindUOL                // 引用链接
+	KindRaw                // 原始数据块
 )
 
 func (k Kind) String() string {
