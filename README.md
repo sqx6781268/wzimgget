@@ -2,7 +2,8 @@
 
 扫描游戏客户端 `Data` 目录（由 HaSuite 等工具从 .wz 容器导出的独立 `.img` 文件），
 参照 [WzComparerR2](https://github.com/Kagamia/WzComparerR2) 的解析思路，
-提取 **装备（Character）、物品（Item）、NPC（Npc）** 三类资源的主图标，
+提取 **装备（Character）、物品（Item）、NPC（Npc）、怪物（Mob）、技能（Skill）、
+变身（Morph）、地图物件（Reactor）** 七类资源的主图标，
 输出为 PNG 并保持与 Data 相同的目录结构。
 
 ## 功能特点
@@ -23,9 +24,19 @@
   旧式 AES 分块加密数据；支持 form 1(ARGB4444) / 2(ARGB8888) / 3(缩略) /
   513(RGB565) / 517 / 1026(DXT3) / 2050(DXT5)。
 - **图标取值顺序**（仿 WzComparerR2）：
-  `info/iconRaw` → `info/icon` → `info/animatedIcon` → `stand0/0` → `stand/0` →
-  `strike1/0` → `swingO1/0` → `action/00` → `action/stick0` → `0`；
+  `info/iconRaw` → `info/icon` → `info/animatedIcon` → `iconRaw` → `icon` →
+  `iconRaw/0` → `icon/0` → `stand0/0` → `stand/0` → `strike1/0` → `swingO1/0` →
+  `action/00` → `action/stick0` → `0`；
   某候选解码失败（如空帧）时自动尝试下一候选。
+  NPC/怪物/变身/物件等非物品资源的图标通常不在 `info/icon`，而在 `stand/0`
+  （或 Reactor 的 `0/0`）动画首帧；
+  Item 四位数组文件（如 `Etc/0400.img`、`Cash/0501.img`）会**按内部物品 ID 逐个导出**
+  （如 `04000000.img.png`，与组文件同目录），而不是只出一张组文件图。
+- **Hair/Face 代表图开关**：`Character/Hair`、`Character/Face` 的穿戴部件本身无图标节点，
+  默认按"无图标"跳过；加 `-hairface` 参数后改为导出其代表图
+  （`default/hairOverHead` / `default/face`）。
+- **Store 模式打包**：批量提取完成后自动打包为不压缩的 `imgdata.zip`，
+  消除海量小文件的 NTFS 簇浪费，便于备份传输、读取零解压；支持 `pack` 子命令单独打包。
 
 ## 构建
 
@@ -63,11 +74,17 @@ wzimgget.exe extract D:\game\Data -key 4D23C72B
 
 :: 关闭 IV 暴力枚举兜底（默认开启：所有密钥失败时自动全空间搜索）
 wzimgget.exe extract D:\game\Data -nobf
+
+:: 同时导出 Hair/Face 穿戴部件代表图（默认跳过）
+wzimgget.exe extract D:\game\Data -hairface
 ```
 
-- 仅处理顶层目录为 `Character` / `Item` / `Npc` 的 `.img`，其余目录整体跳过。
+- 仅处理顶层目录为 `Character` / `Item` / `Npc` / `Mob` / `Skill` / `Morph` / `Reactor`
+  的 `.img`，其余目录整体跳过。
 - 输出命名保持原 IMG ID：`Character/Accessory/01142538.img` →
-  `imgdata/Character/Accessory/01142538.img.png`。
+  `imgdata/Character/Accessory/01142538.img.png`；
+  Item 组文件（如 `Item/Etc/0400.img`）按内部物品 ID 输出：
+  `imgdata/Item/Etc/04000000.img.png`（一图一物品，可直接按物品 ID 匹配）。
 - 结束后打印统计：总数 / 成功 / 无图标 / 失败。加 `-v` 可逐文件输出明细。
 - 说明：`Character/Hair`、`Character/Face` 等穿戴部件的 img 本身不含
   `info/icon` 图标节点，属正常"无图标"跳过。
@@ -83,6 +100,26 @@ wzimgget.exe img D:\game\Data\Npc\0002000.img -out icon.png
 ```
 
 支持同样的 `-key` / `-nobf` 选项；未知密钥文件同样会触发暴力枚举兜底。
+对 Item 组文件（多物品 ID），所有图标按 `<物品ID>.img.png` 输出，
+此时 `-out` 应给目录（给 .png 文件名会被忽略并提示）。
+
+### Store 模式打包
+
+批量提取结束后会自动把输出目录打包为不压缩的 `imgdata.zip`
+（PNG 已自带压缩，Store 模式零解压读取、消除海量小文件的 NTFS 簇浪费，便于备份与传输）：
+
+```bat
+:: 单独打包任意目录（默认输出 <目录>.zip）
+wzimgget.exe pack D:\game\imgdata
+
+:: 指定输出 ZIP 路径
+wzimgget.exe pack D:\game\imgdata -out E:\backup\icons-2026.zip
+
+:: 提取后不自动打包
+wzimgget.exe extract D:\game\Data -nozip
+```
+
+归档内为与原目录一致的 `/` 分隔相对路径；目录内容再有增删时必须重新打包。
 
 ### 调试命令
 
@@ -109,6 +146,7 @@ wzimgget/
 ├── main.go          命令行入口（extract / img / dump / png）
 ├── extract.go       批量提取：目录遍历、图标候选、统计
 ├── keys.go          外部密钥注册与暴力枚举兜底编排、密钥日志
+├── pack.go          Store 模式 ZIP 打包（extract 自动执行 / pack 子命令）
 ├── LICENSE          MIT 许可证
 ├── .gitignore       忽略编译产物与提取输出
 ├── docs/            经验文档（格式/加密/像素/业务/踩坑/密钥对照，见 docs/文档索引.md）
@@ -131,7 +169,7 @@ wzimgget/
 
 ## 许可证与免责声明
 
-- 本项目采用 [MIT License](LICENSE) 开源。
+- 本项目采用 [MIT License](LICENSE) 开源，版本变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 - 本项目仅用于游戏资源文件格式的学习与研究，不附带任何游戏数据；
   游戏资源（含 .wz/.img 内的图像、文本等）的版权归原游戏厂商及相关权利人所有，
   请勿将其用于商业用途或再次分发。

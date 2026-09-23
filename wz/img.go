@@ -385,15 +385,21 @@ func (p *parser) extractValue(parent *Node, eob int) {
 	}
 }
 
-// Resolve 按斜杠路径在当前树中查找节点（支持 UOL 单层跳转）。
+// Resolve 按斜杠路径在当前树中查找节点（支持 UOL 跳转；目标缺失时返回 nil 而非 panic）。
 func (n *Node) Resolve(path string) *Node {
 	cur := n
 	for _, seg := range strings.Split(path, "/") {
 		if seg == "" {
 			continue
 		}
+		if cur == nil {
+			return nil
+		}
 		if cur.Kind == KindUOL {
 			cur = n.Resolve(cur.S)
+			if cur == nil {
+				return nil
+			}
 		}
 		child := cur.Child(seg)
 		if child == nil {
